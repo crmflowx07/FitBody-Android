@@ -1,0 +1,41 @@
+name: Build FitBody APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Expand FitBody design assets
+        run: unzip -q assets-bundle.zip -d .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install dependencies
+        run: npm install
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --clean --non-interactive
+      - name: Build release APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease --no-daemon
+      - name: Collect APK
+        run: |
+          mkdir -p output
+          cp android/app/build/outputs/apk/release/app-release.apk output/FitBody.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FitBody-APK
+          path: output/FitBody.apk
+          retention-days: 30
