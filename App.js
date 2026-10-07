@@ -222,6 +222,7 @@ export default function App(){
   const [chatMessages,setChatMessages]=useState([]);
   const [profileDraft,setProfileDraft]=useState({fullName:"",email:"",phone:""});
   const [setupToast,setSetupToast]=useState("");
+  const [searchMatches,setSearchMatches]=useState([]);
 
   useEffect(()=>{
     (async()=>{
@@ -303,6 +304,8 @@ export default function App(){
 
   const setSetupValue=(key,value)=>{setAppState(s=>({...s,setup:{...s.setup,[key]:value}}));setSetupToast(value);setTimeout(()=>setSetupToast(""),800);};
   const saveProfile=()=>{const next={fullName:profileDraft.fullName.trim(),email:profileDraft.email.trim(),phone:profileDraft.phone.trim()};if(next.fullName.length<2)return Alert.alert("Profile","Please enter your name.");setAppState(s=>({...s,profile:next}));setFullName(next.fullName);setEmail(next.email);setPhone(next.phone);Alert.alert("Saved","Profile updated.");};
+  React.useEffect(()=>{const q=search.trim().toLowerCase();if(!q){setSearchMatches([]);return;}const catalog=[["Beginner workout",GROUPS.beginner[0]],["Intermediate workout",GROUPS.intermediate[0]],["Advanced workout",GROUPS.advanced[0]],["Nutrition",GROUPS.mealIntro[0]],["Breakfast",GROUPS.breakfast[0]],["Lunch",GROUPS.lunch[0]],["Dinner",GROUPS.dinner[0]],["Weekly challenge",GROUPS.weekly[0]],["Articles and tips",GROUPS.articleTips[0]],["Community",GROUPS.community[0]],["Progress",GROUPS.progress[0]]];setSearchMatches(catalog.filter(([label])=>label.toLowerCase().includes(q)).slice(0,4));},[search]);
+  const formatDuration=(sec)=>`${Math.floor((sec||0)/60)}m ${(sec||0)%60}s`;
   const src=SCREENS[screen] || SCREENS[HOME];
   const info=Image.resolveAssetSource(src);
   const baseW=info?.width || 393, baseH=info?.height || 852;
@@ -423,6 +426,8 @@ export default function App(){
     overlays.push(<Hotspot key="nu" scale={scale} x={255} y={160} w={120} h={65} onPress={()=>go(GROUPS.search[2])}/>);
   }
 
+  if(GROUPS.search.includes(screen) && searchMatches.length>0){overlays.push(<View key="searchResults" style={{position:"absolute",left:28*scale,top:230*scale,width:337*scale,backgroundColor:"rgba(23,23,23,.94)",borderRadius:16*scale,padding:8*scale}}>{searchMatches.map(([label,target])=><Pressable key={target} onPress={()=>go(target)} style={{paddingVertical:10*scale,paddingHorizontal:10*scale,borderBottomWidth:1,borderBottomColor:"rgba(255,255,255,.08)"}}><Text style={{color:"#fff",fontSize:12*scale,fontWeight:"700"}}>{label}</Text></Pressable>)}</View>);}
+
   // workout tabs + detail progress
   const workoutAll=[...GROUPS.beginner,...GROUPS.intermediate,...GROUPS.advanced];
   if(workoutAll.includes(screen)){
@@ -439,6 +444,8 @@ export default function App(){
     overlays.push(<Hotspot key="plog" scale={scale} x={20} y={95} w={175} h={70} onPress={()=>go(GROUPS.progress[0])}/>);
     overlays.push(<Hotspot key="pchart" scale={scale} x={198} y={95} w={175} h={70} onPress={()=>go(GROUPS.progress[1])}/>);
   }
+
+  if(screen===GROUPS.progress[1]){overlays.push(<View key="stats" style={{position:"absolute",left:28*scale,top:575*scale,width:337*scale,minHeight:120*scale,backgroundColor:"rgba(25,25,25,.88)",borderRadius:18*scale,padding:14*scale}}><Text style={{color:"#e6ff54",fontWeight:"900",fontSize:14*scale}}>Your FitBody Progress</Text><Text style={{color:"#fff",fontSize:11*scale,marginTop:6*scale}}>Completed workouts: {appState.completedWorkouts}</Text><Text style={{color:"#fff",fontSize:11*scale,marginTop:3*scale}}>Training time: {formatDuration(appState.totalWorkoutSeconds)}</Text><Text style={{color:"#c8c3cc",fontSize:10*scale,marginTop:3*scale}}>Saved logs: {(appState.workoutLogs||[]).length}</Text></View>);}
 
   // nutrition flows
   if(screen===GROUPS.mealIntro[0]) overlays.push(<Hotspot key="mealStart" scale={scale} x={15} y={135} w={363} h={630} onPress={()=>go(GROUPS.mealIntro[1])}/>);
