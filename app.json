@@ -2,12 +2,12 @@
   "expo": {
     "name": "FitBody",
     "slug": "fitbody-complete",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "android": {
       "package": "com.muzamil.fitbody",
-      "versionCode": 2
+      "versionCode": 3
     },
     "ios": {
       "supportsTablet": false
