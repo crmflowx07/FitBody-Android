@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View, Image, Pressable, StyleSheet, TextInput, Text, StatusBar,
   ScrollView, Modal, TouchableOpacity, Alert, KeyboardAvoidingView, Platform
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const SCREENS = {
   "10_-_A_-_Articles_and_Tips": require("./assets/screens/10_-_A_-_Articles_and_Tips.webp"),
@@ -100,6 +101,17 @@ const SCREENS = {
   "9_-_D_-_Weekly_Challenge": require("./assets/screens/9_-_D_-_Weekly_Challenge.webp"),
 };
 
+const STORAGE_KEY = "@fitbody_state_v2";
+
+const DEFAULT_APP_STATE = {
+  onboarded: false,
+  loggedIn: false,
+  profile: { fullName: "", email: "", phone: "" },
+  favorites: [],
+  completedWorkouts: 0,
+  totalWorkoutSeconds: 0
+};
+
 const HOME = "5_-_A_-_Home";
 const BOTTOM_HOME = "11.1_-_A_-_Home";
 const RESOURCES = "11.2_-_A_-_Workout_Videos";
@@ -188,6 +200,7 @@ function groupOf(screen){
 
 export default function App(){
   const [screen,setScreen]=useState("1_-_A_-_Launch");
+  const [hydrated,setHydrated]=useState(false);
   const [history,setHistory]=useState([]);
   const [renderW,setRenderW]=useState(393);
   const [menu,setMenu]=useState(false);
@@ -195,11 +208,90 @@ export default function App(){
   const [password,setPassword]=useState("");
   const [fullName,setFullName]=useState("");
   const [phone,setPhone]=useState("");
+  const [confirmPassword,setConfirmPassword]=useState("");
+  const [appState,setAppState]=useState(DEFAULT_APP_STATE);
+  const [workoutSeconds,setWorkoutSeconds]=useState(0);
+  const timerRef=useRef(null);
   const [search,setSearch]=useState("");
   const [chat,setChat]=useState("");
   const [isVideoPlaying,setVideoPlaying]=useState(false);
   const [workoutStarted,setWorkoutStarted]=useState(false);
   const [favorite,setFavorite]=useState(false);
+  const [chatMessages,setChatMessages]=useState([]);
+
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const raw=await AsyncStorage.getItem(STORAGE_KEY);
+        if(raw){
+          const saved={...DEFAULT_APP_STATE,...JSON.parse(raw)};
+          setAppState(saved);
+          setFullName(saved.profile?.fullName || "");
+          setEmail(saved.profile?.email || "");
+          setPhone(saved.profile?.phone || "");
+          setScreen(saved.loggedIn ? HOME : (saved.onboarded ? "3_-_A_-_Log_In" : "1_-_A_-_Launch"));
+        }
+      }catch(e){}
+      setHydrated(true);
+    })();
+    return ()=>{ if(timerRef.current) clearInterval(timerRef.current); };
+  },[]);
+
+  useEffect(()=>{
+    if(!hydrated) return;
+    AsyncStorage.setItem(STORAGE_KEY,JSON.stringify(appState)).catch(()=>{});
+  },[appState,hydrated]);
+
+  useEffect(()=>{
+    if(workoutStarted){
+      timerRef.current=setInterval(()=>setWorkoutSeconds(s=>s+1),1000);
+    }else if(timerRef.current){
+      clearInterval(timerRef.current); timerRef.current=null;
+    }
+    return ()=>{ if(timerRef.current){clearInterval(timerRef.current);timerRef.current=null;} };
+  },[workoutStarted]);
+
+  const finishWorkout=()=>{
+    setWorkoutStarted(false);
+    setAppState(s=>({...s,completedWorkouts:s.completedWorkouts+1,totalWorkoutSeconds:s.totalWorkoutSeconds+workoutSeconds}));
+    setWorkoutSeconds(0);
+  };
+
+  const login=()=>{
+    const clean=email.trim();
+    if(!clean || !clean.includes("@")) return Alert.alert("Email required","Please enter a valid email address.");
+    if(password.length<4) return Alert.alert("Password required","Please enter your password.");
+    setAppState(s=>({...s,loggedIn:true,onboarded:true,profile:{...s.profile,email:clean}}));
+    setHistory([]);
+    setScreen(HOME);
+  };
+
+  const signup=()=>{
+    if(fullName.trim().length<2) return Alert.alert("Name required","Please enter your full name.");
+    if(!phone.trim()) return Alert.alert("Mobile required","Please enter your mobile number.");
+    if(password.length<6) return Alert.alert("Password too short","Use at least 6 characters.");
+    if(password!==confirmPassword) return Alert.alert("Passwords do not match","Please confirm the same password.");
+    setAppState(s=>({...s,onboarded:true,loggedIn:true,profile:{fullName:fullName.trim(),email:s.profile?.email||"",phone:phone.trim()}}));
+    setHistory([]);
+    setScreen(SETUP_FLOW[0]);
+  };
+
+  const toggleFavorite=()=>{
+    const id=screen;
+    setAppState(s=>{
+      const exists=s.favorites.includes(id);
+      return {...s,favorites:exists?s.favorites.filter(x=>x!==id):[...s.favorites,id]};
+    });
+    setFavorite(v=>!v);
+  };
+
+  const sendChat=()=>{
+    const msg=chat.trim();
+    if(!msg) return;
+    setChatMessages(m=>[...m,{id:Date.now(),text:msg,from:"me"}]);
+    setChat("");
+    setTimeout(()=>setChatMessages(m=>[...m,{id:Date.now()+1,text:"Thanks — your message has been received. FitBody support is here to help.",from:"support"}]),350);
+  };
 
   const src=SCREENS[screen] || SCREENS[HOME];
   const info=Image.resolveAssetSource(src);
@@ -224,8 +316,8 @@ export default function App(){
   if(screen==="1_-_A_-_Launch") overlays.push(<Hotspot key="launch" scale={scale} x={0} y={0} w={393} h={852} onPress={()=>go(INTRO_FLOW[1])}/>);
   if(screen.startsWith("2_-")){
     const i=INTRO_FLOW.indexOf(screen);
-    overlays.push(<Hotspot key="onNext" scale={scale} x={70} y={495} w={260} h={120} onPress={()=>go(INTRO_FLOW[i+1])}/>);
-    overlays.push(<Hotspot key="onSkip" scale={scale} x={285} y={45} w={100} h={70} onPress={()=>go("3_-_A_-_Log_In")}/>);
+    overlays.push(<Hotspot key="onNext" scale={scale} x={70} y={495} w={260} h={120} onPress={()=>{const t=INTRO_FLOW[i+1]; if(t==="3_-_A_-_Log_In") setAppState(s=>({...s,onboarded:true})); go(t)}}/>);
+    overlays.push(<Hotspot key="onSkip" scale={scale} x={285} y={45} w={100} h={70} onPress={()=>{setAppState(s=>({...s,onboarded:true}));go("3_-_A_-_Log_In")}}/>);
   }
 
   // Login
@@ -233,15 +325,15 @@ export default function App(){
     overlays.push(<Field key="e" scale={scale} x={41} y={377} w={311} h={45} value={email} onChangeText={setEmail} keyboardType="email-address"/>);
     overlays.push(<Field key="p" scale={scale} x={41} y={465} w={311} h={45} value={password} onChangeText={setPassword} secure/>);
     overlays.push(<Hotspot key="forgot" scale={scale} x={215} y={505} w={170} h={70} onPress={()=>go(FORGOT_FLOW[0])}/>);
-    overlays.push(<Hotspot key="login" scale={scale} x={88} y={575} w={220} h={90} onPress={()=>go(SETUP_FLOW[0])}/>);
+    overlays.push(<Hotspot key="login" scale={scale} x={88} y={575} w={220} h={90} onPress={login}/>);
     overlays.push(<Hotspot key="signup" scale={scale} x={45} y={755} w={305} h={80} onPress={()=>go("3_-_B_-_Sign_Up")}/>);
   }
   if(screen==="3_-_B_-_Sign_Up"){
     overlays.push(<Field key="name" scale={scale} x={41} y={242} w={311} h={45} value={fullName} onChangeText={setFullName}/>);
     overlays.push(<Field key="phone" scale={scale} x={41} y={330} w={311} h={45} value={phone} onChangeText={setPhone} keyboardType="phone-pad"/>);
     overlays.push(<Field key="pw" scale={scale} x={41} y={418} w={311} h={45} value={password} onChangeText={setPassword} secure/>);
-    overlays.push(<Field key="cpw" scale={scale} x={41} y={506} w={311} h={45} value={password} onChangeText={setPassword} secure/>);
-    overlays.push(<Hotspot key="sign" scale={scale} x={95} y={635} w={205} h={85} onPress={()=>go(SETUP_FLOW[0])}/>);
+    overlays.push(<Field key="cpw" scale={scale} x={41} y={506} w={311} h={45} value={confirmPassword} onChangeText={setConfirmPassword} secure/>);
+    overlays.push(<Hotspot key="sign" scale={scale} x={95} y={635} w={205} h={85} onPress={signup}/>);
     overlays.push(<Hotspot key="loginlink" scale={scale} x={45} y={775} w={305} h={70} onPress={()=>go("3_-_A_-_Log_In")}/>);
   }
 
@@ -258,7 +350,7 @@ export default function App(){
     const i=SETUP_FLOW.indexOf(screen);
     overlays.push(<Hotspot key="setupBack" scale={scale} x={10} y={35} w={70} h={90} onPress={back}/>);
     overlays.push(<Hotspot key="setupMain" scale={scale} x={20} y={150} w={353} h={520} onPress={()=>{}}/>);
-    overlays.push(<Hotspot key="setupNext" scale={scale} x={55} y={665} w={285} h={155} onPress={()=>go(SETUP_FLOW[i+1])}/>);
+    overlays.push(<Hotspot key="setupNext" scale={scale} x={55} y={665} w={285} h={155} onPress={()=>{if(screen==="4.7_-_A_-_Fill_yopur_profile"){setAppState(s=>({...s,loggedIn:true,onboarded:true,profile:{fullName:fullName||s.profile.fullName,email:email||s.profile.email,phone:phone||s.profile.phone}}));} go(SETUP_FLOW[i+1])}}/>);
   }
 
   // Home architecture
@@ -285,7 +377,7 @@ export default function App(){
   }
   if(screen==="6.1._5-_A_-Log_Out"){
     overlays.push(<Hotspot key="no" scale={scale} x={30} y={430} w={160} h={110} onPress={back}/>);
-    overlays.push(<Hotspot key="yes" scale={scale} x={200} y={430} w={160} h={110} onPress={()=>{setHistory([]);setScreen("3_-_A_-_Log_In")}}/>);
+    overlays.push(<Hotspot key="yes" scale={scale} x={200} y={430} w={160} h={110} onPress={()=>{setAppState(s=>({...s,loggedIn:false}));setHistory([]);setScreen("3_-_A_-_Log_In")}}/>);
   }
 
   // profile favorites tabs
@@ -363,7 +455,7 @@ export default function App(){
     overlays.push(<Hotspot key="ba" scale={scale} x={20} y={95} w={115} h={70} onPress={()=>go(GROUPS.bottomFavorites[0])}/>);
     overlays.push(<Hotspot key="bv" scale={scale} x={135} y={95} w={120} h={70} onPress={()=>go(GROUPS.bottomFavorites[1])}/>);
     overlays.push(<Hotspot key="bar" scale={scale} x={255} y={95} w={120} h={70} onPress={()=>go(GROUPS.bottomFavorites[2])}/>);
-    overlays.push(<Hotspot key="favToggle" scale={scale} x={315} y={150} w={65} h={540} onPress={()=>setFavorite(v=>!v)}/>);
+    overlays.push(<Hotspot key="favToggle" scale={scale} x={315} y={150} w={65} h={540} onPress={toggleFavorite}/>);
   }
 
   // support
@@ -375,14 +467,14 @@ export default function App(){
   if(screen===GROUPS.support[2]) overlays.push(<Hotspot key="toOnline" scale={scale} x={15} y={200} w={363} h={260} onPress={()=>go(GROUPS.support[3])}/>);
   if(screen===GROUPS.support[3]){
     overlays.push(<Field key="chat" scale={scale} x={67} y={710} w={220} h={48} value={chat} onChangeText={setChat}/>);
-    overlays.push(<Hotspot key="send" scale={scale} x={288} y={705} w={75} h={65} onPress={()=>setChat("")}/>);
+    overlays.push(<Hotspot key="send" scale={scale} x={288} y={705} w={75} h={65} onPress={sendChat}/>);
   }
 
   // Workout/video action states for detailed screens
   const detailScreens=[GROUPS.beginner[2],GROUPS.intermediate[2],GROUPS.advanced[2],GROUPS.resourcesVideos[1],GROUPS.resourcesVideos[2],"8_-_B_-_Dumbbell_Step_Up"];
   if(detailScreens.includes(screen)){
     overlays.push(<Hotspot key="play" scale={scale} x={65} y={180} w={265} h={330} onPress={()=>setVideoPlaying(v=>!v)}/>);
-    overlays.push(<Hotspot key="start" scale={scale} x={55} y={610} w={285} h={120} onPress={()=>setWorkoutStarted(v=>!v)}/>);
+    overlays.push(<Hotspot key="start" scale={scale} x={55} y={610} w={285} h={120} onPress={()=>{if(workoutStarted) finishWorkout(); else {setWorkoutSeconds(0);setWorkoutStarted(true);}}}/>);
   }
 
   // universal back and bottom nav on main app screens
@@ -399,6 +491,8 @@ export default function App(){
   }
   if(screen===BOTTOM_HOME) overlays.push(<Hotspot key="bottomToMain" scale={scale} x={0} y={0} w={393} h={baseH-72} onLongPress={()=>go(HOME)} onPress={()=>{}}/>);
 
+  if(!hydrated) return <View style={styles.loading}><Text style={styles.loadingText}>FITBODY</Text></View>;
+
   return <KeyboardAvoidingView style={styles.root} behavior={Platform.OS==="ios"?"padding":undefined} onLayout={e=>setRenderW(e.nativeEvent.layout.width)}>
     <StatusBar hidden />
     <ScrollView style={styles.scroll} contentContainerStyle={{minHeight:"100%"}} showsVerticalScrollIndicator={false} bounces={false}>
@@ -409,12 +503,16 @@ export default function App(){
           <Text style={styles.stateTitle}>▶ WORKOUT VIDEO UI ACTIVE</Text>
           <Text style={styles.stateText}>The supplied Figma source contains video-screen artwork only; no MP4/WebM file was included.</Text>
         </Pressable>}
-        {workoutStarted && <View style={[styles.smallBadge,{bottom:95*scale,left:65*scale,width:263*scale}]}><Text style={styles.smallBadgeText}>Workout started ✓</Text></View>}
-        {favorite && <View style={[styles.smallBadge,{top:115*scale,left:90*scale,width:213*scale}]}><Text style={styles.smallBadgeText}>Saved to favorites ★</Text></View>}
+        {workoutStarted && <Pressable onPress={finishWorkout} style={[styles.smallBadge,{bottom:95*scale,left:65*scale,width:263*scale}]}>
+          <Text style={styles.smallBadgeText}>Workout active • {String(Math.floor(workoutSeconds/60)).padStart(2,"0")}:{String(workoutSeconds%60).padStart(2,"0")} • Tap to finish</Text>
+        </Pressable>}
+        {appState.favorites.includes(screen) && <View style={[styles.smallBadge,{top:115*scale,left:90*scale,width:213*scale}]}><Text style={styles.smallBadgeText}>Saved to favorites ★</Text></View>}
+        {screen===GROUPS.support[3] && chatMessages.length>0 && <View style={[styles.chatOverlay,{left:18*scale,right:18*scale,bottom:100*scale}]}>
+          {chatMessages.slice(-3).map(m=><View key={m.id} style={[styles.chatBubble,m.from==="me"?styles.chatMine:styles.chatSupport]}><Text style={styles.chatText}>{m.text}</Text></View>)}
+        </View>}
       </View>
     </ScrollView>
 
-    <TouchableOpacity style={styles.qaButton} onLongPress={()=>setMenu(true)} onPress={()=>setMenu(true)}><Text style={styles.qaText}>≡</Text></TouchableOpacity>
     <Modal visible={menu} transparent animationType="fade" onRequestClose={()=>setMenu(false)}>
       <Pressable style={styles.shade} onPress={()=>setMenu(false)}>
         <View style={styles.menuCard}>
@@ -441,4 +539,6 @@ const styles=StyleSheet.create({
   stateBadge:{position:"absolute",backgroundColor:"rgba(15,15,15,.90)",padding:16,borderRadius:18,borderWidth:1,borderColor:"#dfff4f"},
   stateTitle:{color:"#dfff4f",fontWeight:"900",fontSize:14,textAlign:"center"}, stateText:{color:"white",fontSize:10,lineHeight:15,textAlign:"center",marginTop:5},
   smallBadge:{position:"absolute",backgroundColor:"rgba(20,20,20,.9)",padding:10,borderRadius:16}, smallBadgeText:{color:"white",fontWeight:"800",fontSize:12,textAlign:"center"},
+  loading:{flex:1,backgroundColor:"#1f1f1f",alignItems:"center",justifyContent:"center"},loadingText:{color:"#dfff4f",fontSize:28,fontWeight:"900",letterSpacing:3},
+  chatOverlay:{position:"absolute",gap:6},chatBubble:{maxWidth:"82%",paddingHorizontal:12,paddingVertical:8,borderRadius:14},chatMine:{alignSelf:"flex-end",backgroundColor:"rgba(126,89,214,.95)"},chatSupport:{alignSelf:"flex-start",backgroundColor:"rgba(35,35,35,.95)"},chatText:{color:"#fff",fontSize:11,lineHeight:15},
 });
