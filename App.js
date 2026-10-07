@@ -110,7 +110,8 @@ const DEFAULT_APP_STATE = {
   favorites: [],
   completedWorkouts: 0,
   totalWorkoutSeconds: 0,
-  workoutLogs: []
+  workoutLogs: [],
+  setup: { gender:"", age:"", weight:"", height:"", goal:"", activity:"" }
 };
 
 const HOME = "5_-_A_-_Home";
@@ -219,6 +220,8 @@ export default function App(){
   const [workoutStarted,setWorkoutStarted]=useState(false);
   const [favorite,setFavorite]=useState(false);
   const [chatMessages,setChatMessages]=useState([]);
+  const [profileDraft,setProfileDraft]=useState({fullName:"",email:"",phone:""});
+  const [setupToast,setSetupToast]=useState("");
 
   useEffect(()=>{
     (async()=>{
@@ -230,6 +233,7 @@ export default function App(){
           setFullName(saved.profile?.fullName || "");
           setEmail(saved.profile?.email || "");
           setPhone(saved.profile?.phone || "");
+          setProfileDraft({fullName:saved.profile?.fullName || "",email:saved.profile?.email || "",phone:saved.profile?.phone || ""});
           setScreen(saved.loggedIn ? HOME : (saved.onboarded ? "3_-_A_-_Log_In" : "1_-_A_-_Launch"));
         }
       }catch(e){}
@@ -297,6 +301,8 @@ export default function App(){
     setTimeout(()=>setChatMessages(m=>[...m,{id:Date.now()+1,text:"Thanks — your message has been received. FitBody support is here to help.",from:"support"}]),350);
   };
 
+  const setSetupValue=(key,value)=>{setAppState(s=>({...s,setup:{...s.setup,[key]:value}}));setSetupToast(value);setTimeout(()=>setSetupToast(""),800);};
+  const saveProfile=()=>{const next={fullName:profileDraft.fullName.trim(),email:profileDraft.email.trim(),phone:profileDraft.phone.trim()};if(next.fullName.length<2)return Alert.alert("Profile","Please enter your name.");setAppState(s=>({...s,profile:next}));setFullName(next.fullName);setEmail(next.email);setPhone(next.phone);Alert.alert("Saved","Profile updated.");};
   const src=SCREENS[screen] || SCREENS[HOME];
   const info=Image.resolveAssetSource(src);
   const baseW=info?.width || 393, baseH=info?.height || 852;
@@ -357,6 +363,13 @@ export default function App(){
     overlays.push(<Hotspot key="setupNext" scale={scale} x={55} y={665} w={285} h={155} onPress={()=>{if(screen==="4.7_-_A_-_Fill_yopur_profile"){setAppState(s=>({...s,loggedIn:true,onboarded:true,profile:{fullName:fullName||s.profile.fullName,email:email||s.profile.email,phone:phone||s.profile.phone}}));} go(SETUP_FLOW[i+1])}}/>);
   }
 
+  if(screen==="4.1_-_A_-_Gender"){overlays.push(<Hotspot key="male" scale={scale} x={30} y={210} w={155} h={320} onPress={()=>setSetupValue("gender","Male")}/>);overlays.push(<Hotspot key="female" scale={scale} x={205} y={210} w={155} h={320} onPress={()=>setSetupValue("gender","Female")}/>);}
+  if(screen==="4.2_-_A_-_How_old") overlays.push(<Hotspot key="agepick" scale={scale} x={20} y={215} w={353} h={390} onPress={()=>setSetupValue("age","25")}/>);
+  if(screen==="4.3_-_A_-_Weight") overlays.push(<Hotspot key="weightpick" scale={scale} x={20} y={215} w={353} h={390} onPress={()=>setSetupValue("weight","70 kg")}/>);
+  if(screen==="4.4_-_A_-_Height") overlays.push(<Hotspot key="heightpick" scale={scale} x={20} y={215} w={353} h={390} onPress={()=>setSetupValue("height","175 cm")}/>);
+  if(screen==="4.5_-_A_-_Goal"){overlays.push(<Hotspot key="g1" scale={scale} x={20} y={170} w={353} h={120} onPress={()=>setSetupValue("goal","Lose weight")}/>);overlays.push(<Hotspot key="g2" scale={scale} x={20} y={295} w={353} h={120} onPress={()=>setSetupValue("goal","Improve fitness")}/>);overlays.push(<Hotspot key="g3" scale={scale} x={20} y={420} w={353} h={120} onPress={()=>setSetupValue("goal","Build muscle")}/>);}
+  if(screen==="4.6_-_A_-_Physical_activity_level"){overlays.push(<Hotspot key="a1" scale={scale} x={20} y={180} w={353} h={125} onPress={()=>setSetupValue("activity","Light")}/>);overlays.push(<Hotspot key="a2" scale={scale} x={20} y={310} w={353} h={125} onPress={()=>setSetupValue("activity","Moderate")}/>);overlays.push(<Hotspot key="a3" scale={scale} x={20} y={440} w={353} h={125} onPress={()=>setSetupValue("activity","Very active")}/>);}
+
   // Home architecture
   if(screen===HOME){
     overlays.push(<Hotspot key="search" scale={scale} x={250} y={35} w={50} h={80} onPress={()=>go(GROUPS.search[0])}/>);
@@ -372,6 +385,7 @@ export default function App(){
   }
 
   // profile menu
+  if(screen===GROUPS.profile[1]){overlays.push(<Field key="pname" scale={scale} x={40} y={305} w={310} h={50} value={profileDraft.fullName} onChangeText={v=>setProfileDraft(p=>({...p,fullName:v}))}/>);overlays.push(<Field key="pemail" scale={scale} x={40} y={390} w={310} h={50} value={profileDraft.email} onChangeText={v=>setProfileDraft(p=>({...p,email:v}))} keyboardType="email-address"/>);overlays.push(<Field key="pphone" scale={scale} x={40} y={475} w={310} h={50} value={profileDraft.phone} onChangeText={v=>setProfileDraft(p=>({...p,phone:v}))} keyboardType="phone-pad"/>);overlays.push(<Hotspot key="psave" scale={scale} x={65} y={610} w={265} h={110} onPress={saveProfile}/>);}
   if(screen===GROUPS.profile[0]){
     overlays.push(<Hotspot key="edit" scale={scale} x={15} y={250} w={360} h={100} onPress={()=>go(GROUPS.profile[1])}/>);
     overlays.push(<Hotspot key="pfav" scale={scale} x={15} y={350} w={360} h={75} onPress={()=>go(GROUPS.profileFavorites[0])}/>);
@@ -511,6 +525,7 @@ export default function App(){
           <Text style={styles.smallBadgeText}>Workout active • {String(Math.floor(workoutSeconds/60)).padStart(2,"0")}:{String(workoutSeconds%60).padStart(2,"0")} • Tap to finish</Text>
         </Pressable>}
         {appState.favorites.includes(screen) && <View style={[styles.smallBadge,{top:115*scale,left:90*scale,width:213*scale}]}><Text style={styles.smallBadgeText}>Saved to favorites ★</Text></View>}
+        {setupToast ? <View style={[styles.smallBadge,{top:115*scale,left:88*scale,width:217*scale}]}><Text style={styles.smallBadgeText}>Selected: {setupToast}</Text></View> : null}
         {screen===GROUPS.support[3] && chatMessages.length>0 && <View style={[styles.chatOverlay,{left:18*scale,right:18*scale,bottom:100*scale}]}>
           {chatMessages.slice(-3).map(m=><View key={m.id} style={[styles.chatBubble,m.from==="me"?styles.chatMine:styles.chatSupport]}><Text style={styles.chatText}>{m.text}</Text></View>)}
         </View>}
