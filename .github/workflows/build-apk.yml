@@ -33,6 +33,22 @@ jobs:
             <color name="splashscreen_background">#FFFFFF</color>
           </resources>
           EOF
+      - name: Optimize Android release
+        run: |
+          cat >> android/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g
+          android.enableR8.fullMode=true
+          android.nonTransitiveRClass=true
+          android.nonFinalResIds=true
+          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("android/app/build.gradle")
+          s=p.read_text()
+          s=s.replace("minifyEnabled enableProguardInReleaseBuilds","minifyEnabled true")
+          s=s.replace("shrinkResources (findProperty('android.enableShrinkResourcesInReleaseBuilds')?.toBoolean() ?: false)","shrinkResources true")
+          p.write_text(s)
+          PY
       - name: Build release APK
         run: |
           chmod +x android/gradlew
