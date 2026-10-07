@@ -109,7 +109,8 @@ const DEFAULT_APP_STATE = {
   profile: { fullName: "", email: "", phone: "" },
   favorites: [],
   completedWorkouts: 0,
-  totalWorkoutSeconds: 0
+  totalWorkoutSeconds: 0,
+  workoutLogs: []
 };
 
 const HOME = "5_-_A_-_Home";
@@ -252,9 +253,12 @@ export default function App(){
   },[workoutStarted]);
 
   const finishWorkout=()=>{
+    const duration=Math.max(1,workoutSeconds);
+    const log={id:Date.now(),screen,duration,completedAt:new Date().toISOString()};
     setWorkoutStarted(false);
-    setAppState(s=>({...s,completedWorkouts:s.completedWorkouts+1,totalWorkoutSeconds:s.totalWorkoutSeconds+workoutSeconds}));
+    setAppState(s=>({...s,completedWorkouts:s.completedWorkouts+1,totalWorkoutSeconds:s.totalWorkoutSeconds+duration,workoutLogs:[log,...(s.workoutLogs||[])].slice(0,100)}));
     setWorkoutSeconds(0);
+    Alert.alert("Workout completed","Saved to your progress history.");
   };
 
   const login=()=>{
