@@ -111,7 +111,8 @@ const DEFAULT_APP_STATE = {
   completedWorkouts: 0,
   totalWorkoutSeconds: 0,
   workoutLogs: [],
-  setup: { gender:"", age:"", weight:"", height:"", goal:"", activity:"" }
+  setup: { gender:"", age:"", weight:"", height:"", goal:"", activity:"" },
+  preferences: { workoutReminders:true, systemNotifications:true, sounds:true }
 };
 
 const HOME = "5_-_A_-_Home";
@@ -313,6 +314,19 @@ export default function App(){
   };
 
   const setSetupValue=(key,value)=>{setAppState(s=>({...s,setup:{...s.setup,[key]:value}}));setSetupToast(value);setTimeout(()=>setSetupToast(""),800);};
+  const togglePref=(key)=>setAppState(s=>({...s,preferences:{...s.preferences,[key]:!s.preferences[key]}}));
+  const setupKeyForScreen={
+    "4.1_-_A_-_Gender":"gender","4.2_-_A_-_How_old":"age","4.3_-_A_-_Weight":"weight",
+    "4.4_-_A_-_Height":"height","4.5_-_A_-_Goal":"goal","4.6_-_A_-_Physical_activity_level":"activity"
+  };
+  const advanceSetup=(index)=>{
+    const key=setupKeyForScreen[screen];
+    if(key && !appState.setup[key]) return Alert.alert("Complete this step","Please choose an option before continuing.");
+    if(screen==="4.7_-_A_-_Fill_yopur_profile"){
+      setAppState(s=>({...s,loggedIn:true,onboarded:true,profile:{fullName:fullName||s.profile.fullName,email:email||s.profile.email,phone:phone||s.profile.phone}}));
+    }
+    go(SETUP_FLOW[index+1]);
+  };
   const saveProfile=()=>{const next={fullName:profileDraft.fullName.trim(),email:profileDraft.email.trim(),phone:profileDraft.phone.trim()};if(next.fullName.length<2)return Alert.alert("Profile","Please enter your name.");setAppState(s=>({...s,profile:next}));setFullName(next.fullName);setEmail(next.email);setPhone(next.phone);Alert.alert("Saved","Profile updated.");};
   React.useEffect(()=>{const q=search.trim().toLowerCase();if(!q){setSearchMatches([]);return;}const catalog=[["Beginner workout",GROUPS.beginner[0]],["Intermediate workout",GROUPS.intermediate[0]],["Advanced workout",GROUPS.advanced[0]],["Nutrition",GROUPS.mealIntro[0]],["Breakfast",GROUPS.breakfast[0]],["Lunch",GROUPS.lunch[0]],["Dinner",GROUPS.dinner[0]],["Weekly challenge",GROUPS.weekly[0]],["Articles and tips",GROUPS.articleTips[0]],["Community",GROUPS.community[0]],["Progress",GROUPS.progress[0]]];setSearchMatches(catalog.filter(([label])=>label.toLowerCase().includes(q)).slice(0,4));},[search]);
   const formatDuration=(sec)=>`${Math.floor((sec||0)/60)}m ${(sec||0)%60}s`;
@@ -373,7 +387,7 @@ export default function App(){
     const i=SETUP_FLOW.indexOf(screen);
     overlays.push(<Hotspot key="setupBack" scale={scale} x={10} y={35} w={70} h={90} onPress={back}/>);
     overlays.push(<Hotspot key="setupMain" scale={scale} x={20} y={150} w={353} h={520} onPress={()=>{}}/>);
-    overlays.push(<Hotspot key="setupNext" scale={scale} x={55} y={665} w={285} h={155} onPress={()=>{if(screen==="4.7_-_A_-_Fill_yopur_profile"){setAppState(s=>({...s,loggedIn:true,onboarded:true,profile:{fullName:fullName||s.profile.fullName,email:email||s.profile.email,phone:phone||s.profile.phone}}));} go(SETUP_FLOW[i+1])}}/>);
+    overlays.push(<Hotspot key="setupNext" scale={scale} x={55} y={665} w={285} h={155} onPress={()=>advanceSetup(i)}/>);
   }
 
   if(screen==="4.1_-_A_-_Gender"){overlays.push(<Hotspot key="male" scale={scale} x={30} y={210} w={155} h={320} onPress={()=>setSetupValue("gender","Male")}/>);overlays.push(<Hotspot key="female" scale={scale} x={205} y={210} w={155} h={320} onPress={()=>setSetupValue("gender","Female")}/>);}
@@ -433,6 +447,18 @@ export default function App(){
     overlays.push(<Hotspot key="spass" scale={scale} x={15} y={245} w={360} h={115} onPress={()=>go(GROUPS.settings[2])}/>);
   }
 
+  if(screen===GROUPS.settings[1]){
+    overlays.push(<Hotspot key="pref1" scale={scale} x={20} y={180} w={353} h={110} onPress={()=>togglePref("workoutReminders")}/>);
+    overlays.push(<Hotspot key="pref2" scale={scale} x={20} y={295} w={353} h={110} onPress={()=>togglePref("systemNotifications")}/>);
+    overlays.push(<Hotspot key="pref3" scale={scale} x={20} y={410} w={353} h={110} onPress={()=>togglePref("sounds")}/>);
+    overlays.push(<View key="prefStatus" style={{position:"absolute",left:30*scale,top:560*scale,width:333*scale,backgroundColor:"rgba(25,25,25,.9)",borderRadius:16*scale,padding:12*scale}}>
+      <Text style={{color:"#e7ff55",fontWeight:"900",fontSize:12*scale}}>Saved preferences</Text>
+      <Text style={{color:"#fff",fontSize:10*scale,marginTop:5*scale}}>Workout reminders: {appState.preferences.workoutReminders?"On":"Off"}</Text>
+      <Text style={{color:"#fff",fontSize:10*scale,marginTop:3*scale}}>System notifications: {appState.preferences.systemNotifications?"On":"Off"}</Text>
+      <Text style={{color:"#fff",fontSize:10*scale,marginTop:3*scale}}>Sounds: {appState.preferences.sounds?"On":"Off"}</Text>
+    </View>);
+  }
+
   // notifications + search tabs
   if(GROUPS.notifications.includes(screen)){
     overlays.push(<Hotspot key="nr" scale={scale} x={20} y={95} w={175} h={70} onPress={()=>go(GROUPS.notifications[0])}/>);
@@ -462,6 +488,13 @@ export default function App(){
   if(GROUPS.progress.includes(screen)){
     overlays.push(<Hotspot key="plog" scale={scale} x={20} y={95} w={175} h={70} onPress={()=>go(GROUPS.progress[0])}/>);
     overlays.push(<Hotspot key="pchart" scale={scale} x={198} y={95} w={175} h={70} onPress={()=>go(GROUPS.progress[1])}/>);
+  }
+
+  if(screen===GROUPS.progress[0] && (appState.workoutLogs||[]).length>0){
+    overlays.push(<View key="recentLogs" style={{position:"absolute",left:24*scale,top:470*scale,width:345*scale,backgroundColor:"rgba(24,24,24,.92)",borderRadius:16*scale,padding:12*scale}}>
+      <Text style={{color:"#e7ff55",fontWeight:"900",fontSize:12*scale}}>Recent workouts</Text>
+      {(appState.workoutLogs||[]).slice(0,4).map((log,idx)=><Text key={log.id||idx} style={{color:"#fff",fontSize:9.5*scale,marginTop:5*scale}}>#{idx+1} • {formatDuration(log.duration)} • {new Date(log.completedAt).toLocaleDateString()}</Text>)}
+    </View>);
   }
 
   if(screen===GROUPS.progress[1]){overlays.push(<View key="stats" style={{position:"absolute",left:28*scale,top:575*scale,width:337*scale,minHeight:120*scale,backgroundColor:"rgba(25,25,25,.88)",borderRadius:18*scale,padding:14*scale}}><Text style={{color:"#e6ff54",fontWeight:"900",fontSize:14*scale}}>Your FitBody Progress</Text><Text style={{color:"#fff",fontSize:11*scale,marginTop:6*scale}}>Completed workouts: {appState.completedWorkouts}</Text><Text style={{color:"#fff",fontSize:11*scale,marginTop:3*scale}}>Training time: {formatDuration(appState.totalWorkoutSeconds)}</Text><Text style={{color:"#c8c3cc",fontSize:10*scale,marginTop:3*scale}}>Saved logs: {(appState.workoutLogs||[]).length}</Text></View>);}
@@ -500,6 +533,12 @@ export default function App(){
     overlays.push(<Hotspot key="bv" scale={scale} x={135} y={95} w={120} h={70} onPress={()=>go(GROUPS.bottomFavorites[1])}/>);
     overlays.push(<Hotspot key="bar" scale={scale} x={255} y={95} w={120} h={70} onPress={()=>go(GROUPS.bottomFavorites[2])}/>);
     overlays.push(<Hotspot key="favToggle" scale={scale} x={315} y={150} w={65} h={540} onPress={toggleFavorite}/>);
+  }
+
+  if(GROUPS.bottomFavorites.includes(screen) || GROUPS.profileFavorites.includes(screen)){
+    overlays.push(<View key="favCount" style={{position:"absolute",right:18*scale,top:50*scale,backgroundColor:"rgba(25,25,25,.88)",borderRadius:14*scale,paddingHorizontal:10*scale,paddingVertical:6*scale}}>
+      <Text style={{color:"#e7ff55",fontWeight:"900",fontSize:10*scale}}>{appState.favorites.length} saved</Text>
+    </View>);
   }
 
   // support
