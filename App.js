@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View, Image, Pressable, StyleSheet, TextInput, Text, StatusBar,
-  ScrollView, Modal, TouchableOpacity, Alert, KeyboardAvoidingView, Platform
+  ScrollView, Modal, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, BackHandler
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -249,6 +249,16 @@ export default function App(){
   },[appState,hydrated]);
 
   useEffect(()=>{
+    const sub=BackHandler.addEventListener("hardwareBackPress",()=>{
+      if(menu){setMenu(false);return true;}
+      if(history.length){back();return true;}
+      if(appState.loggedIn && screen!==HOME){setScreen(HOME);return true;}
+      return false;
+    });
+    return ()=>sub.remove();
+  },[menu,history,screen,appState.loggedIn]);
+
+  useEffect(()=>{
     if(workoutStarted){
       timerRef.current=setInterval(()=>setWorkoutSeconds(s=>s+1),1000);
     }else if(timerRef.current){
@@ -367,11 +377,20 @@ export default function App(){
   }
 
   if(screen==="4.1_-_A_-_Gender"){overlays.push(<Hotspot key="male" scale={scale} x={30} y={210} w={155} h={320} onPress={()=>setSetupValue("gender","Male")}/>);overlays.push(<Hotspot key="female" scale={scale} x={205} y={210} w={155} h={320} onPress={()=>setSetupValue("gender","Female")}/>);}
-  if(screen==="4.2_-_A_-_How_old") overlays.push(<Hotspot key="agepick" scale={scale} x={20} y={215} w={353} h={390} onPress={()=>setSetupValue("age","25")}/>);
-  if(screen==="4.3_-_A_-_Weight") overlays.push(<Hotspot key="weightpick" scale={scale} x={20} y={215} w={353} h={390} onPress={()=>setSetupValue("weight","70 kg")}/>);
-  if(screen==="4.4_-_A_-_Height") overlays.push(<Hotspot key="heightpick" scale={scale} x={20} y={215} w={353} h={390} onPress={()=>setSetupValue("height","175 cm")}/>);
+  if(screen==="4.2_-_A_-_How_old") overlays.push(<Hotspot key="agepick" scale={scale} x={20} y={215} w={353} h={390} onPress={()=>{const vals=["18","21","25","30","35","40"];const i=Math.max(0,vals.indexOf(appState.setup.age));setSetupValue("age",vals[(i+1)%vals.length])}}/>);
+  if(screen==="4.3_-_A_-_Weight") overlays.push(<Hotspot key="weightpick" scale={scale} x={20} y={215} w={353} h={390} onPress={()=>{const vals=["50 kg","60 kg","70 kg","80 kg","90 kg"];const i=Math.max(0,vals.indexOf(appState.setup.weight));setSetupValue("weight",vals[(i+1)%vals.length])}}/>);
+  if(screen==="4.4_-_A_-_Height") overlays.push(<Hotspot key="heightpick" scale={scale} x={20} y={215} w={353} h={390} onPress={()=>{const vals=["155 cm","165 cm","175 cm","185 cm","195 cm"];const i=Math.max(0,vals.indexOf(appState.setup.height));setSetupValue("height",vals[(i+1)%vals.length])}}/>);
   if(screen==="4.5_-_A_-_Goal"){overlays.push(<Hotspot key="g1" scale={scale} x={20} y={170} w={353} h={120} onPress={()=>setSetupValue("goal","Lose weight")}/>);overlays.push(<Hotspot key="g2" scale={scale} x={20} y={295} w={353} h={120} onPress={()=>setSetupValue("goal","Improve fitness")}/>);overlays.push(<Hotspot key="g3" scale={scale} x={20} y={420} w={353} h={120} onPress={()=>setSetupValue("goal","Build muscle")}/>);}
   if(screen==="4.6_-_A_-_Physical_activity_level"){overlays.push(<Hotspot key="a1" scale={scale} x={20} y={180} w={353} h={125} onPress={()=>setSetupValue("activity","Light")}/>);overlays.push(<Hotspot key="a2" scale={scale} x={20} y={310} w={353} h={125} onPress={()=>setSetupValue("activity","Moderate")}/>);overlays.push(<Hotspot key="a3" scale={scale} x={20} y={440} w={353} h={125} onPress={()=>setSetupValue("activity","Very active")}/>);}
+
+  if(screen==="4.7_-_A_-_Fill_yopur_profile"){
+    overlays.push(<View key="setupSummary" style={{position:"absolute",left:35*scale,top:520*scale,width:323*scale,backgroundColor:"rgba(28,28,28,.90)",borderRadius:16*scale,padding:12*scale}}>
+      <Text style={{color:"#e7ff55",fontWeight:"900",fontSize:12*scale}}>Your setup</Text>
+      <Text style={{color:"#fff",fontSize:10*scale,marginTop:5*scale}}>Gender: {appState.setup.gender || "Not selected"} • Age: {appState.setup.age || "—"}</Text>
+      <Text style={{color:"#fff",fontSize:10*scale,marginTop:3*scale}}>Weight: {appState.setup.weight || "—"} • Height: {appState.setup.height || "—"}</Text>
+      <Text style={{color:"#fff",fontSize:10*scale,marginTop:3*scale}}>Goal: {appState.setup.goal || "—"} • Activity: {appState.setup.activity || "—"}</Text>
+    </View>);
+  }
 
   // Home architecture
   if(screen===HOME){
@@ -398,7 +417,7 @@ export default function App(){
   }
   if(screen==="6.1._5-_A_-Log_Out"){
     overlays.push(<Hotspot key="no" scale={scale} x={30} y={430} w={160} h={110} onPress={back}/>);
-    overlays.push(<Hotspot key="yes" scale={scale} x={200} y={430} w={160} h={110} onPress={()=>{setAppState(s=>({...s,loggedIn:false}));setHistory([]);setScreen("3_-_A_-_Log_In")}}/>);
+    overlays.push(<Hotspot key="yes" scale={scale} x={200} y={430} w={160} h={110} onPress={()=>{setWorkoutStarted(false);setWorkoutSeconds(0);setVideoPlaying(false);setAppState(s=>({...s,loggedIn:false}));setHistory([]);setScreen("3_-_A_-_Log_In")}}/>);
   }
 
   // profile favorites tabs
